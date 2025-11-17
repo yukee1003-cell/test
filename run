@@ -1,0 +1,296 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+from matplotlib import font_manager
+from matplotlib.font_manager import FontProperties
+import matplotlib
+import platform
+import os
+
+# 清除matplotlib字体缓存并重新加载
+try:
+    import shutil
+    cache_dir = matplotlib.get_cachedir()
+    import glob
+    # 查找所有字体缓存文件
+    cache_patterns = [
+        os.path.join(cache_dir, 'fontlist-v*.json'),
+        os.path.join(cache_dir, 'fontlist-v*.pickle'),
+        os.path.join(cache_dir, 'tex.cache'),
+    ]
+    for pattern in cache_patterns:
+        cache_files = glob.glob(pattern)
+        for cache_file in cache_files:
+            try:
+                os.remove(cache_file)
+                print(f"已删除字体缓存: {cache_file}")
+            except:
+                pass
+    # 重新构建字体管理器（如果方法存在）
+    try:
+        if hasattr(font_manager, '_rebuild'):
+            font_manager._rebuild()
+        elif hasattr(font_manager.fontManager, 'addfont'):
+            # 尝试其他方法
+            pass
+        print("字体缓存已清除")
+    except:
+        pass
+except Exception as e:
+    print(f"清除字体缓存时出错: {e}")
+
+# 设置中文字体 - 使用Windows字体文件路径
+system = platform.system()
+chinese_font_path = None
+chinese_font_name = None
+
+if system == 'Windows':
+    # Windows系统字体文件路径
+    font_paths = [
+        r'C:\Windows\Fonts\msyh.ttc',  # 微软雅黑
+        r'C:\Windows\Fonts\simhei.ttf',  # 黑体
+        r'C:\Windows\Fonts\simsun.ttc',  # 宋体
+        r'C:\Windows\Fonts\msyhbd.ttc',  # 微软雅黑 Bold
+    ]
+    font_names = ['Microsoft YaHei', 'SimHei', 'SimSun', 'Microsoft YaHei']
+    
+    # 查找可用的字体文件
+    for font_path, font_name in zip(font_paths, font_names):
+        if os.path.exists(font_path):
+            chinese_font_path = font_path
+            chinese_font_name = font_name
+            print(f"找到中文字体文件: {font_path}")
+            break
+    
+    # 如果找到字体文件，直接使用文件路径
+    if chinese_font_path:
+        # 方法1: 使用FontProperties全局设置
+        prop = FontProperties(fname=chinese_font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+        plt.rcParams['font.sans-serif'] = [prop.get_name(), 'SimHei', 'Microsoft YaHei', 'SimSun']
+        print(f"使用字体: {prop.get_name()}")
+    else:
+        # 方法2: 使用字体名称
+        plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'SimSun', 'KaiTi']
+        print("使用字体名称: Microsoft YaHei")
+        
+elif system == 'Darwin':
+    plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'PingFang SC', 'STHeiti']
+else:
+    plt.rcParams['font.sans-serif'] = ['WenQuanYi Micro Hei', 'Noto Sans CJK SC', 'DejaVu Sans']
+
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
+# 如果找到了字体文件，创建一个全局的FontProperties对象供后续使用
+if chinese_font_path:
+    chinese_font_prop = FontProperties(fname=chinese_font_path)
+else:
+    chinese_font_prop = None
+
+# 设置图表样式
+sns.set_style("whitegrid")
+sns.set_palette("husl")
+
+# 表1数据：水电出力与负荷相关系数
+data_table1 = {
+    '区域': ['上海', '浙江', '江苏', '三省合计'],
+    '水电_vs_净负荷_日': [0.6551, 0.6420, 0.6394, 0.6661],
+    '水电_vs_电网负荷_日': [0.6612, 0.6719, 0.6871, 0.6952],
+    '水电_vs_净负荷_旬': [0.6780, 0.6657, 0.6869, 0.6967],
+    '水电_vs_电网负荷_旬': [0.6840, 0.6909, 0.7113, 0.7161],
+    '水电_vs_净负荷_月': [0.6916, 0.6951, 0.7161, 0.7226],
+    '水电_vs_电网负荷_月': [0.6977, 0.7142, 0.7329, 0.7363]
+}
+
+# 表2数据：差值比较
+data_table2 = {
+    '区域': ['上海', '浙江', '江苏', '三省合计'],
+    '日尺度差值': [0.0061, 0.0299, 0.0477, 0.0291],
+    '旬尺度差值': [0.0060, 0.0252, 0.0244, 0.0194],
+    '月尺度差值': [0.0061, 0.0191, 0.0168, 0.0137]
+}
+
+# 创建DataFrame
+df1 = pd.DataFrame(data_table1)
+df2 = pd.DataFrame(data_table2)
+
+# 创建图表
+fig = plt.figure(figsize=(20, 12))
+gs = fig.add_gridspec(3, 2, hspace=0.3, wspace=0.3)
+
+# ========== 图1：相关系数热力图 ==========
+ax1 = fig.add_subplot(gs[0, :])
+# 准备热力图数据
+heatmap_data = df1.set_index('区域').T
+heatmap_data.columns.name = '区域'
+heatmap_data.index.name = '指标'
+
+# 绘制热力图
+if chinese_font_prop:
+    cbar_kws_dict = {'label': '相关系数'}
+    sns.heatmap(heatmap_data, annot=True, fmt='.4f', cmap='YlOrRd', 
+                cbar_kws=cbar_kws_dict, ax=ax1, 
+                linewidths=0.5, linecolor='gray', vmin=0.63, vmax=0.74)
+    # 设置颜色条标签字体
+    cbar = ax1.collections[0].colorbar
+    if cbar is not None:
+        cbar.set_label('相关系数', fontproperties=chinese_font_prop)
+else:
+    sns.heatmap(heatmap_data, annot=True, fmt='.4f', cmap='YlOrRd', 
+                cbar_kws={'label': '相关系数'}, ax=ax1, 
+                linewidths=0.5, linecolor='gray', vmin=0.63, vmax=0.74)
+if chinese_font_prop:
+    ax1.set_title('水电出力与负荷相关系数热力图', fontsize=16, fontweight='bold', pad=20, fontproperties=chinese_font_prop)
+    ax1.set_xlabel('区域', fontsize=12, fontproperties=chinese_font_prop)
+    ax1.set_ylabel('指标', fontsize=12, fontproperties=chinese_font_prop)
+else:
+    ax1.set_title('水电出力与负荷相关系数热力图', fontsize=16, fontweight='bold', pad=20)
+    ax1.set_xlabel('区域', fontsize=12)
+    ax1.set_ylabel('指标', fontsize=12)
+
+# ========== 图2：不同时间尺度对比（折线图） ==========
+ax2 = fig.add_subplot(gs[1, 0])
+regions = df1['区域']
+time_scales = ['日', '旬', '月']
+x_pos = np.arange(len(time_scales))
+
+# 绘制净负荷相关系数
+for i, region in enumerate(regions):
+    net_values = [
+        df1.loc[i, '水电_vs_净负荷_日'],
+        df1.loc[i, '水电_vs_净负荷_旬'],
+        df1.loc[i, '水电_vs_净负荷_月']
+    ]
+    ax2.plot(x_pos, net_values, marker='o', linewidth=2, 
+             markersize=8, label=f'{region}-净负荷', linestyle='--')
+
+# 绘制电网负荷相关系数
+for i, region in enumerate(regions):
+    grid_values = [
+        df1.loc[i, '水电_vs_电网负荷_日'],
+        df1.loc[i, '水电_vs_电网负荷_旬'],
+        df1.loc[i, '水电_vs_电网负荷_月']
+    ]
+    ax2.plot(x_pos, grid_values, marker='s', linewidth=2, 
+             markersize=8, label=f'{region}-电网负荷', linestyle='-')
+
+if chinese_font_prop:
+    ax2.set_xlabel('时间尺度', fontsize=12, fontproperties=chinese_font_prop)
+    ax2.set_ylabel('相关系数', fontsize=12, fontproperties=chinese_font_prop)
+    ax2.set_title('不同时间尺度下的相关系数变化趋势', fontsize=14, fontweight='bold', fontproperties=chinese_font_prop)
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(time_scales, fontproperties=chinese_font_prop)
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9, prop=chinese_font_prop)
+else:
+    ax2.set_xlabel('时间尺度', fontsize=12)
+    ax2.set_ylabel('相关系数', fontsize=12)
+    ax2.set_title('不同时间尺度下的相关系数变化趋势', fontsize=14, fontweight='bold')
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(time_scales)
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
+ax2.grid(True, alpha=0.3)
+
+# ========== 图3：区域对比柱状图 ==========
+ax3 = fig.add_subplot(gs[1, 1])
+x = np.arange(len(regions))
+width = 0.15
+
+# 准备数据
+metrics = [
+    ('水电_vs_净负荷_日', '净负荷-日'),
+    ('水电_vs_电网负荷_日', '电网负荷-日'),
+    ('水电_vs_净负荷_旬', '净负荷-旬'),
+    ('水电_vs_电网负荷_旬', '电网负荷-旬'),
+    ('水电_vs_净负荷_月', '净负荷-月'),
+    ('水电_vs_电网负荷_月', '电网负荷-月')
+]
+
+colors = sns.color_palette("husl", len(metrics))
+for idx, (col, label) in enumerate(metrics):
+    values = df1[col].values
+    ax3.bar(x + idx * width, values, width, label=label, color=colors[idx], alpha=0.8)
+
+if chinese_font_prop:
+    ax3.set_xlabel('区域', fontsize=12, fontproperties=chinese_font_prop)
+    ax3.set_ylabel('相关系数', fontsize=12, fontproperties=chinese_font_prop)
+    ax3.set_title('各区域不同指标相关系数对比', fontsize=14, fontweight='bold', fontproperties=chinese_font_prop)
+    ax3.set_xticks(x + width * (len(metrics) - 1) / 2)
+    ax3.set_xticklabels(regions, fontproperties=chinese_font_prop)
+    ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, prop=chinese_font_prop)
+else:
+    ax3.set_xlabel('区域', fontsize=12)
+    ax3.set_ylabel('相关系数', fontsize=12)
+    ax3.set_title('各区域不同指标相关系数对比', fontsize=14, fontweight='bold')
+    ax3.set_xticks(x + width * (len(metrics) - 1) / 2)
+    ax3.set_xticklabels(regions)
+    ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+ax3.grid(True, alpha=0.3, axis='y')
+
+# ========== 图4：差值比较柱状图 ==========
+ax4 = fig.add_subplot(gs[2, 0])
+x = np.arange(len(regions))
+width = 0.25
+
+diff_metrics = ['日尺度差值', '旬尺度差值', '月尺度差值']
+diff_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
+
+for idx, metric in enumerate(diff_metrics):
+    values = df2[metric].values
+    ax4.bar(x + idx * width, values, width, label=metric, 
+            color=diff_colors[idx], alpha=0.8, edgecolor='black', linewidth=1)
+
+if chinese_font_prop:
+    ax4.set_xlabel('区域', fontsize=12, fontproperties=chinese_font_prop)
+    ax4.set_ylabel('差值 (电网负荷 - 净负荷)', fontsize=12, fontproperties=chinese_font_prop)
+    ax4.set_title('电网负荷与净负荷相关系数差值比较', fontsize=14, fontweight='bold', fontproperties=chinese_font_prop)
+    ax4.set_xticks(x + width)
+    ax4.set_xticklabels(regions, fontproperties=chinese_font_prop)
+    ax4.legend(fontsize=10, prop=chinese_font_prop)
+else:
+    ax4.set_xlabel('区域', fontsize=12)
+    ax4.set_ylabel('差值 (电网负荷 - 净负荷)', fontsize=12)
+    ax4.set_title('电网负荷与净负荷相关系数差值比较', fontsize=14, fontweight='bold')
+    ax4.set_xticks(x + width)
+    ax4.set_xticklabels(regions)
+    ax4.legend(fontsize=10)
+ax4.grid(True, alpha=0.3, axis='y')
+ax4.axhline(y=0, color='black', linestyle='-', linewidth=0.8)
+
+# ========== 图5：差值趋势折线图 ==========
+ax5 = fig.add_subplot(gs[2, 1])
+for i, region in enumerate(regions):
+    diff_values = [
+        df2.loc[i, '日尺度差值'],
+        df2.loc[i, '旬尺度差值'],
+        df2.loc[i, '月尺度差值']
+    ]
+    ax5.plot(time_scales, diff_values, marker='o', linewidth=2.5, 
+             markersize=10, label=region, linestyle='-')
+
+if chinese_font_prop:
+    ax5.set_xlabel('时间尺度', fontsize=12, fontproperties=chinese_font_prop)
+    ax5.set_ylabel('差值 (电网负荷 - 净负荷)', fontsize=12, fontproperties=chinese_font_prop)
+    ax5.set_title('差值随时间尺度的变化趋势', fontsize=14, fontweight='bold', fontproperties=chinese_font_prop)
+    ax5.legend(fontsize=10, prop=chinese_font_prop)
+else:
+    ax5.set_xlabel('时间尺度', fontsize=12)
+    ax5.set_ylabel('差值 (电网负荷 - 净负荷)', fontsize=12)
+    ax5.set_title('差值随时间尺度的变化趋势', fontsize=14, fontweight='bold')
+    ax5.legend(fontsize=10)
+ax5.grid(True, alpha=0.3)
+ax5.axhline(y=0, color='black', linestyle='--', linewidth=1, alpha=0.5)
+
+# 添加总标题
+if chinese_font_prop:
+    fig.suptitle('水电出力与负荷相关性分析可视化', fontsize=18, fontweight='bold', y=0.995, fontproperties=chinese_font_prop)
+else:
+    fig.suptitle('水电出力与负荷相关性分析可视化', fontsize=18, fontweight='bold', y=0.995)
+
+# 保存图片
+plt.savefig('水电负荷相关性分析.png', dpi=300, bbox_inches='tight', facecolor='white')
+print("可视化图表已保存为：水电负荷相关性分析.png")
+
+# 显示图表
+plt.show()
+
